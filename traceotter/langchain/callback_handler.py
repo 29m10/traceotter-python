@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -204,6 +205,11 @@ class CallbackHandler(BaseCallbackHandler):
         run.payload.end_time_unix_nano = now_ns()
         run.payload.status_code = "OK"
         if output_payload is not None:
+            run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_OUTPUT] = (
+                output_payload
+                if isinstance(output_payload, str)
+                else safe_json_dumps(output_payload)
+            )
             run.payload.events.append(
                 OTelEvent(
                     name="traceotter.output",
@@ -214,7 +220,9 @@ class CallbackHandler(BaseCallbackHandler):
         self.client.enqueue_span(run.payload)
         self._detach_observation(run_id_str)
 
-    def _error_run(self, *, run_id: Any, error: BaseException) -> None:
+    def _error_run(
+        self, *, run_id: Any, error: BaseException, input_payload: Any = None
+    ) -> None:
         run_id_str = self._string_id(run_id) or ""
         run = self._runs.pop(run_id_str, None)
         if run is None:
@@ -232,6 +240,12 @@ class CallbackHandler(BaseCallbackHandler):
             run.payload.attributes[
                 TraceotterOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
             ] = str(error)
+        if input_payload is not None:
+            run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_INPUT] = (
+                input_payload
+                if isinstance(input_payload, str)
+                else safe_json_dumps(input_payload)
+            )
         run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_COST_DETAILS] = (
             safe_json_dumps({"total": 0})
         )
@@ -306,7 +320,7 @@ class CallbackHandler(BaseCallbackHandler):
         self._deregister_traceotter_prompt(run_id)
 
     def on_chain_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
-        self._error_run(run_id=run_id, error=error)
+        self._error_run(run_id=run_id, error=error, input_payload=kwargs.get("inputs"))
 
     def on_llm_new_token(
         self,
@@ -321,7 +335,7 @@ class CallbackHandler(BaseCallbackHandler):
         if run and run_key not in self._updated_completion_start_time_memo:
             run.payload.attributes[
                 TraceotterOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-            ] = safe_json_dumps(now_ns())
+            ] = safe_json_dumps(datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
             self._updated_completion_start_time_memo.add(run_key)
 
     def on_chat_model_start(
@@ -457,7 +471,7 @@ class CallbackHandler(BaseCallbackHandler):
         self._updated_completion_start_time_memo.discard(run_key)
 
     def on_llm_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
-        self._error_run(run_id=run_id, error=error)
+        self._error_run(run_id=run_id, error=error, input_payload=kwargs.get("inputs"))
 
     def on_tool_start(
         self,
@@ -500,7 +514,7 @@ class CallbackHandler(BaseCallbackHandler):
         self._end_run(run_id=run_id, output_payload=output)
 
     def on_tool_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
-        self._error_run(run_id=run_id, error=error)
+        self._error_run(run_id=run_id, error=error, input_payload=kwargs.get("inputs"))
 
     def on_retriever_start(
         self,
@@ -542,7 +556,7 @@ class CallbackHandler(BaseCallbackHandler):
         self._end_run(run_id=run_id, output_payload=serialize_documents(documents))
 
     def on_retriever_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
-        self._error_run(run_id=run_id, error=error)
+        self._error_run(run_id=run_id, error=error, input_payload=kwargs.get("inputs"))
 
     def on_agent_action(
         self,
@@ -555,6 +569,9 @@ class CallbackHandler(BaseCallbackHandler):
         run = self._runs.get(self._string_id(run_id) or "")
         if run:
             run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_TYPE] = "agent"
+            run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_OUTPUT] = (
+                action if isinstance(action, str) else safe_json_dumps(action)
+            )
             run.payload.events.append(
                 OTelEvent(
                     name="traceotter.agent.action",
@@ -574,6 +591,9 @@ class CallbackHandler(BaseCallbackHandler):
         run = self._runs.get(self._string_id(run_id) or "")
         if run:
             run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_TYPE] = "agent"
+            run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_OUTPUT] = (
+                finish if isinstance(finish, str) else safe_json_dumps(finish)
+            )
             run.payload.events.append(
                 OTelEvent(
                     name="traceotter.agent.finish",
