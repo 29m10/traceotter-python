@@ -104,7 +104,7 @@ class ConsoleExporter:
     """Placeholder exporter for local development."""
 
     def export(self, envelopes: list[dict[str, Any]]) -> None:
-        print(safe_json_dumps(envelopes))
+        _ = envelopes
 
 
 class TraceotterClient:
