@@ -467,7 +467,7 @@ class CallbackHandler(BaseCallbackHandler):
                 run.payload.attributes["gen_ai.response.model"] = model
                 run.payload.attributes[TraceotterOtelSpanAttributes.OBSERVATION_MODEL] = model
 
-        self._end_run(run_id=run_id, output_payload=response)
+        self._end_run(run_id=run_id, output_payload=_extract_llm_response(response))
         self._updated_completion_start_time_memo.discard(run_key)
 
     def on_llm_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
@@ -601,4 +601,92 @@ class CallbackHandler(BaseCallbackHandler):
                     attributes={"traceotter.output": safe_json_dumps(finish)},
                 )
             )
+
+    def on_text(
+        self,
+        text: str,
+        *,
+        run_id: Any,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        run = self._runs.get(self._string_id(run_id) or "")
+        if run is None:
+            return
+        run.payload.events.append(
+            OTelEvent(
+                name="traceotter.text",
+                timestamp_unix_nano=now_ns(),
+                attributes={"traceotter.text": text},
+            )
+        )
+
+    def on_retry(
+        self,
+        retry_state: Any,
+        *,
+        run_id: Any,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        run = self._runs.get(self._string_id(run_id) or "")
+        if run is None:
+            return
+        run.payload.events.append(
+            OTelEvent(
+                name="traceotter.retry",
+                timestamp_unix_nano=now_ns(),
+                attributes={"traceotter.retry_state": safe_json_dumps(retry_state)},
+            )
+        )
+
+    def on_custom_event(
+        self,
+        name: str,
+        data: Any,
+        *,
+        run_id: Any,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        run = self._runs.get(self._string_id(run_id) or "")
+        if run is None:
+            return
+        attributes: dict[str, Any] = {
+            "traceotter.custom_event.name": name,
+            "traceotter.custom_event.data": safe_json_dumps(data),
+        }
+        if tags:
+            attributes["traceotter.custom_event.tags"] = safe_json_dumps(tags)
+        if metadata:
+            attributes["traceotter.custom_event.metadata"] = safe_json_dumps(metadata)
+        run.payload.events.append(
+            OTelEvent(
+                name="traceotter.custom_event",
+                timestamp_unix_nano=now_ns(),
+                attributes=attributes,
+            )
+        )
+
+
+def _extract_llm_response(response: Any) -> Any:
+    generations = getattr(response, "generations", None)
+    if isinstance(generations, list) and generations:
+        last_group = generations[-1]
+        if isinstance(last_group, list) and last_group:
+            last_response = last_group[-1]
+            message = getattr(last_response, "message", None)
+            if message is not None:
+                return {
+                    "role": getattr(message, "type", None) or getattr(message, "role", None),
+                    "content": getattr(message, "content", None),
+                    "additional_kwargs": getattr(message, "additional_kwargs", None),
+                }
+            text = getattr(last_response, "text", None)
+            if isinstance(text, str):
+                stripped = text.strip()
+                if stripped:
+                    return stripped
+    return response
 
