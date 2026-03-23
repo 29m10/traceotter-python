@@ -60,16 +60,15 @@ class HttpIngestExporter:
     def __init__(
         self,
         *,
-        public_key: str,
         secret_key: str,
         host: str,
         timeout_seconds: int = 5,
         version: str = "0.1.0",
         max_retries: int = 3,
+        public_key: str | None = None,
         grpc_target: str | None = None,
     ) -> None:
         self._client = TraceotterHttpIngestClient(
-            public_key=public_key,
             secret_key=secret_key,
             base_url=host,
             version=version,
@@ -289,16 +288,14 @@ _CLIENT_SINGLETON_LOCK = threading.Lock()
 
 
 def _default_exporter() -> Any:
-    public_key = os.environ.get("TRACEOTTER_PUBLIC_KEY")
     secret_key = os.environ.get("TRACEOTTER_SECRET_KEY")
     host = os.environ.get("TRACEOTTER_HOST", "https://api.traceotter.com")
     timeout = int(os.environ.get("TRACEOTTER_TIMEOUT", "5"))
     use_grpc = os.environ.get("TRACEOTTER_USE_GRPC", "").lower() in ("1", "true", "yes")
     grpc_port = int(os.environ.get("TRACEOTTER_GRPC_PORT", "50051"))
     grpc_target = grpc_target_from_base_url(host, grpc_port) if use_grpc else None
-    if public_key and secret_key:
+    if secret_key:
         return HttpIngestExporter(
-            public_key=public_key,
             secret_key=secret_key,
             host=host,
             timeout_seconds=timeout,

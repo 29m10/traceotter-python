@@ -23,8 +23,7 @@ pip install traceotter
 ### 1) Configure credentials
 
 ```bash
-export TRACEOTTER_PUBLIC_KEY="your_public_key"
-export TRACEOTTER_SECRET_KEY="your_secret_key"
+export TRACEOTTER_SECRET_KEY="sk_your_secret_key"
 export TRACEOTTER_HOST="https://api.traceotter.com"  # optional
 ```
 
@@ -94,8 +93,7 @@ print(result)
 
 ## Environment Variables
 
-- `TRACEOTTER_PUBLIC_KEY`: required for remote ingest
-- `TRACEOTTER_SECRET_KEY`: required for remote ingest
+- `TRACEOTTER_SECRET_KEY`: required for remote ingest (`sk_...`)
 - `TRACEOTTER_HOST`: API base URL (default: `https://api.traceotter.com`)
 - `TRACEOTTER_TIMEOUT`: request timeout seconds (default: `5`)
 - `TRACEOTTER_FLUSH_AT`: max spans per flush batch

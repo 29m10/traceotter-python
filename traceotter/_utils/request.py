@@ -4,7 +4,6 @@ import json
 import logging
 import threading
 import urllib.parse
-from base64 import b64encode
 from typing import Any
 
 import httpx
@@ -106,14 +105,12 @@ class TraceotterHttpIngestClient:
     def __init__(
         self,
         *,
-        public_key: str,
         secret_key: str,
         base_url: str,
         version: str,
         timeout_seconds: int = 5,
         grpc_target: str | None = None,
     ) -> None:
-        self._public_key = public_key
         self._secret_key = secret_key
         self._base_url = base_url
         self._version = version
@@ -131,14 +128,11 @@ class TraceotterHttpIngestClient:
 
     def _headers(self) -> dict[str, str]:
         return {
-            "Authorization": "Basic "
-            + b64encode(f"{self._public_key}:{self._secret_key}".encode("utf-8")).decode(
-                "ascii"
-            ),
+            "Authorization": f"Bearer {self._secret_key}",
+            "x-api-key": self._secret_key,
             "Content-Type": "application/json",
             "x_traceotter_sdk_name": "python",
             "x_traceotter_sdk_version": self._version,
-            "x_traceotter_public_key": self._public_key,
         }
 
     def _ingest_url(self) -> str:
@@ -224,20 +218,9 @@ class TraceotterHttpIngestClient:
         metadata: list[tuple[str, str]] = [
             ("x_traceotter_sdk_name", "python"),
             ("x_traceotter_sdk_version", self._version),
-            ("x_traceotter_public_key", self._public_key),
+            ("x-api-key", self._secret_key),
+            ("authorization", f"Bearer {self._secret_key}"),
         ]
-        if self._secret_key:
-            metadata.append(
-                (
-                    "authorization",
-                    "Basic "
-                    + b64encode(
-                        f"{self._public_key}:{self._secret_key}".encode("utf-8")
-                    ).decode("ascii"),
-                )
-            )
-        else:
-            metadata.append(("x-api-key", self._public_key))
         return metadata
 
     def _batch_post_grpc(self, spans: list[RawSpan]) -> None:
