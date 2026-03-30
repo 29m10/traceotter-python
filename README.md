@@ -4,13 +4,15 @@
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/traceotter.svg)](https://pypi.org/project/traceotter/)
 
-Traceotter is a production-grade observability SDK for LLM applications and agent workflows, designed for fast integration and reliable operations.
+This is the Python SDK for TraceOtter.
 
-It captures your AI execution graph as structured spans (chains, tools, retrieval, generations) and exports telemetry to Traceotter with batching, retries, and graceful shutdown flushing so teams can:
+It records what happens in your LLM/agent run (chains, tools, retrieval, generations) and sends the trace data to Traceotter.
 
-- debug broken or slow agent runs with full context
-- monitor model/tool behavior across real traffic
-- evaluate quality and cost trends over time
+It uses batching, retries, and flush-on-exit, so you can:
+
+- debug broken or slow runs with useful context
+- monitor how your models and tools behave
+- track quality and cost trends over time
 
 ## Installation
 
